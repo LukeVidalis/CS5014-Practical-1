@@ -1,9 +1,10 @@
 import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.stats import pearsonr
+from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
-import matplotlib.pyplot as plt
-from scipy.stats import pearsonr
 
 
 def get_training_data():
@@ -17,8 +18,15 @@ def get_training_data():
     training = pd.read_csv(file_path, usecols=columns_used, index_col=None)
     results = pd.read_csv(file_path, usecols=[column_number - 2, column_number - 1], skiprows=None, index_col=None)
 
-    #plot_graphs(training, results)
-    pearson_plot(training, results)
+    # plot_graphs(training, results)
+    # pearson_plot(training, results)
+
+    # After examining the values using Pearson's Correlation Coefficient we deduce that X6 and X8 increase the
+    # computational demand more than the influence the results so we remove them.
+    training = training.drop(columns=['X6', 'X8'])
+
+    # Normalizing the values using z = (x - u) / s
+    # z : Normalized Value, x : Value to be normalized, u : mean of training samples, s : standard deviation of samples
     scaler.fit(training)
     training = scaler.transform(training)
     scaler.fit(results)
@@ -28,7 +36,16 @@ def get_training_data():
     # print("----------------------")
     # print("Expected Results:")
     # print(results)
-    return training, results
+
+    # The data is being split firstly between a training and testing data. Since the testing data will not change
+    # throughout running the program it is being saved first in a non randomized manner. The second split is done by
+    # splitting the current training data into training and validation. This process is randomized with the shuffle
+    # parameter and will return different results every time.
+    X_train, X_testing, y_train, y_testing = train_test_split(training, results, test_size=0.10, shuffle=False,
+                                                              random_state=40)
+    X_train, X_validation, y_train, y_validation = train_test_split(X_train, y_train, test_size=0.1111111111,
+                                                                    shuffle=True)
+    return X_train, y_train, X_testing, y_testing, X_validation, y_validation
 
 
 # Creates and plots the relation between the feature and target values
@@ -48,7 +65,7 @@ def plot_graphs(training, results):
         plt.figure(num=y_column_names[y_col]+" Values")
         for x_col in range(0, x_features_num):
             plt.subplot(x_features_num/2, 2, x_col+1).set_title(str(y_column_names[y_col]) + " values for " +
-                                                              str(x_column_names[x_col]))
+                                                                str(x_column_names[x_col]))
             plt.scatter(x[:, x_col], y[:, y_col])
             plt.tight_layout(pad=0.3, w_pad=0.5, h_pad=0.4)
         plt.show()
@@ -91,16 +108,15 @@ def get_rf_classifier(data, results):
     return rf
 
 
-
 def score_classifier(classifier, data, results):
     print(classifier.score(data, results)*100, "%")
 
 
 if __name__ == "__main__":
 
-    training_data, expected_output = get_training_data()
-    linear_classifier = get_lr_classifier(training_data, expected_output)
-    score_classifier(linear_classifier, training_data, expected_output)
+    X_train, y_train, X_testing, y_testing, X_validation, y_validation = get_training_data()
+    linear_classifier = get_lr_classifier(X_train, y_train)
+    score_classifier(linear_classifier, X_testing, y_testing)
 
-    forest_classifier = get_rf_classifier(training_data, expected_output)
-    score_classifier(forest_classifier, training_data, expected_output)
+    forest_classifier = get_rf_classifier(X_train, y_train)
+    score_classifier(forest_classifier, X_testing, y_testing)
