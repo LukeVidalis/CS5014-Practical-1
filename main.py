@@ -17,8 +17,8 @@ def get_training_data():
     training = pd.read_csv(file_path, usecols=columns_used, index_col=None)
     results = pd.read_csv(file_path, usecols=[column_number - 2, column_number - 1], skiprows=None, index_col=None)
 
-    plot_graphs(training, results)
-
+    #plot_graphs(training, results)
+    pearson_plot(training, results)
     scaler.fit(training)
     training = scaler.transform(training)
     scaler.fit(results)
@@ -31,6 +31,8 @@ def get_training_data():
     return training, results
 
 
+# Creates and plots the relation between the feature and target values
+# This method creates 16 graphs in total which are split into two plots: One for Y1 and one for Y2
 def plot_graphs(training, results):
 
     x_column_names = training.columns
@@ -51,6 +53,28 @@ def plot_graphs(training, results):
             plt.tight_layout(pad=0.3, w_pad=0.5, h_pad=0.4)
         plt.show()
         plt.clf()
+
+
+# Creates and displays a plot of the Pearson Correlation coefficient for each of the Y values in regards to the X values
+# The library used to calculate pcc is SciPy
+def pearson_plot(training, results):
+    x_column_names = training.columns
+    y_column_names = results.columns
+
+    x_features_num = training.shape[1]
+    y_features_num = results.shape[1]
+    plt.figure(num="Pearson's Correlation coefficient for Y Values")
+
+    for y_col in range(0, y_features_num):
+        pp = []
+        for x_col in range(0, x_features_num):
+            value = pearsonr(training.values[:, x_col], results.values[:, y_col])[0]
+            pp.append(value)
+
+        plt.subplot(1, 2, y_col+1).set_title("PCC for " + str(y_column_names[y_col]))
+        plt.bar(x_column_names, pp)
+
+    plt.show()
 
 
 def get_lr_classifier(data, results):
