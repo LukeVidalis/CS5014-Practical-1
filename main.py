@@ -4,29 +4,30 @@ from scipy.stats import pearsonr
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import cross_val_score
+import numpy as np
 
 
 def get_training_data():
     file_path = "ENB2012_data.csv"
+    scaler = MinMaxScaler()
 
     file = pd.read_csv(file_path)
     column_number = len(file.columns)
     columns_used = [0, 1, 2, 3, 4, 5, 6, 7]
-    scaler = StandardScaler()
-    test = pd.read_csv(file_path)
+
     training = pd.read_csv(file_path, usecols=columns_used, index_col=None)
     results = pd.read_csv(file_path, usecols=[column_number - 2, column_number - 1], skiprows=None, index_col=None)
 
-    # plot_graphs(training, results)
-    # pearson_plot(training, results)
+    plot_graphs(training, results)
+    pearson_plot(training, results)
 
     # After examining the values using Pearson's Correlation Coefficient we deduce that X6 and X8 increase the
     # computational demand more than the influence the results so we remove them.
     training = training.drop(columns=['X6', 'X8'])
 
-    # Normalizing the values using z = (x - u) / s
-    # z : Normalized Value, x : Value to be normalized, u : mean of training samples, s : standard deviation of samples
+    # Normalizing the values using MinMax Scaler which puts all the values between 0 and 1
     scaler.fit(training)
     training = scaler.transform(training)
     scaler.fit(results)
@@ -40,11 +41,13 @@ def get_training_data():
     # The data is being split firstly between a training and testing data. Since the testing data will not change
     # throughout running the program it is being saved first in a non randomized manner. The second split is done by
     # splitting the current training data into training and validation. This process is randomized with the shuffle
-    # parameter and will return different results every time.
+    # parameter and will return different results every time. The 0.11111111111 test size is done so that the testing
+    # and validation sets have the same size.
     X_train, X_testing, y_train, y_testing = train_test_split(training, results, test_size=0.10, shuffle=False,
                                                               random_state=40)
     X_train, X_validation, y_train, y_validation = train_test_split(X_train, y_train, test_size=0.1111111111,
                                                                     shuffle=True)
+
     return X_train, y_train, X_testing, y_testing, X_validation, y_validation
 
 
@@ -97,26 +100,70 @@ def pearson_plot(training, results):
 def get_lr_classifier(data, results):
     lr = LinearRegression()
     lr.fit(data, results)
-    print(lr)
     return lr
 
 
 def get_rf_classifier(data, results):
     rf = RandomForestRegressor()
     rf.fit(data, results)
-    print(rf)
     return rf
 
 
 def score_classifier(classifier, data, results):
-    print(classifier.score(data, results)*100, "%")
+    print(classifier.score(data, results))
+
+
+def plot_lr_results(model, X, y):
+    theta = model.coef_
+    y_predicted = model.predict(X)
+
+    x_features_num = X.shape[1]
+    g = np.empty((len(X), 2))
+
+    for i in range(0, len(X)):
+        gUnitY1 = 0
+        gUnitY2 = 0
+        for j in range(0, x_features_num):
+            gUnitY1 += theta[0][j]*X[i][j]
+            gUnitY2 += theta[1][j]*X[i][j]
+
+        g[i][0] = gUnitY1
+        g[i][1] = gUnitY2
+
+    plt.subplot(1, 2, 1).set_title("Y1")
+    plt.scatter(g[:, 0], y[:, 0], c='r')
+    plt.plot(g[:, 0], y_predicted[:, 0], c='b')
+    plt.subplot(1, 2, 2).set_title("Y2")
+    plt.scatter(g[:, 1], y[:, 1], c='r')
+    plt.plot(g[:, 1], y_predicted[:, 1], c='b')
+    plt.show()
+    plt.clf()
 
 
 if __name__ == "__main__":
 
     X_train, y_train, X_testing, y_testing, X_validation, y_validation = get_training_data()
     linear_classifier = get_lr_classifier(X_train, y_train)
+
+    print("Score Classifier Linear:")
     score_classifier(linear_classifier, X_testing, y_testing)
 
+    error = cross_val_score(linear_classifier, X_validation, y_validation, cv=2, scoring="neg_mean_squared_error").mean()
+    print("SME Validation Set:", -error)
+
+    error = cross_val_score(linear_classifier, X_testing, y_testing, cv=2, scoring="neg_mean_squared_error").mean()
+    print("SME Testing Set:", -error)
+
+    plot_lr_results(linear_classifier, X_testing, y_testing)
+
     forest_classifier = get_rf_classifier(X_train, y_train)
+
+    error = cross_val_score(forest_classifier, X_testing, y_testing, cv=2, scoring="neg_mean_squared_error").mean()
+    print("SME Testing Set:", -error)
+
+    error = cross_val_score(forest_classifier, X_validation, y_validation, cv=2,
+                            scoring="neg_mean_squared_error").mean()
+    print("SME Validation Set:", -error)
+
+    print("Score Classifier Forest:")
     score_classifier(forest_classifier, X_testing, y_testing)
